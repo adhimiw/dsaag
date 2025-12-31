@@ -5,6 +5,7 @@ from .browser_client import BrowserMCPClient
 from .filesystem_client import FilesystemMCPClient
 from .jupyter_client import JupyterMCPClient
 from .terminal_client import TerminalMCPClient
+from .code_executor_client import CodeExecutorMCPClient
 
 __all__ = [
     "BaseMCPClient",
@@ -12,5 +13,6 @@ __all__ = [
     "BrowserMCPClient",
     "FilesystemMCPClient",
     "TerminalMCPClient",
+    "CodeExecutorMCPClient",
 ]
 

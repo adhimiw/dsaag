@@ -97,3 +97,154 @@ class BrowserMCPClient(BaseMCPClient):
         """
         return self.call_tool("wait_for", {"condition": condition})
 
+    def get_network_logs(self) -> Dict[str, Any]:
+        """Capture network activity logs.
+
+        Returns:
+            Network requests and responses
+        """
+        return self.evaluate_script("""
+            return performance.getEntriesByType('resource').map(entry => ({
+                url: entry.name,
+                duration: entry.duration,
+                size: entry.transferSize,
+                type: entry.initiatorType,
+                startTime: entry.startTime
+            }));
+        """)
+
+    def get_console_logs(self) -> Dict[str, Any]:
+        """Get browser console logs.
+
+        Returns:
+            Console messages
+        """
+        return self.evaluate_script("""
+            return console.memory ? {
+                jsHeapSizeLimit: console.memory.jsHeapSizeLimit,
+                totalJSHeapSize: console.memory.totalJSHeapSize,
+                usedJSHeapSize: console.memory.usedJSHeapSize
+            } : {message: 'Console memory not available'};
+        """)
+
+    def get_performance_metrics(self) -> Dict[str, Any]:
+        """Get detailed performance metrics.
+
+        Returns:
+            Performance timing data
+        """
+        return self.evaluate_script("""
+            const perfData = performance.getEntriesByType('navigation')[0];
+            const paintData = performance.getEntriesByType('paint');
+            
+            return {
+                navigation: perfData ? {
+                    domContentLoaded: perfData.domContentLoadedEventEnd - perfData.domContentLoadedEventStart,
+                    loadComplete: perfData.loadEventEnd - perfData.loadEventStart,
+                    domInteractive: perfData.domInteractive,
+                    domComplete: perfData.domComplete,
+                    transferSize: perfData.transferSize,
+                    encodedBodySize: perfData.encodedBodySize,
+                    decodedBodySize: perfData.decodedBodySize
+                } : null,
+                paint: paintData.map(p => ({name: p.name, time: p.startTime})),
+                memory: performance.memory ? {
+                    jsHeapSizeLimit: performance.memory.jsHeapSizeLimit,
+                    totalJSHeapSize: performance.memory.totalJSHeapSize,
+                    usedJSHeapSize: performance.memory.usedJSHeapSize
+                } : null
+            };
+        """)
+
+    def extract_table_data(self, table_selector: str) -> Dict[str, Any]:
+        """Extract data from an HTML table.
+
+        Args:
+            table_selector: CSS selector for the table
+
+        Returns:
+            Table data as array of arrays
+        """
+        return self.evaluate_script(f"""
+            const table = document.querySelector('{table_selector}');
+            if (!table) return {{error: 'Table not found'}};
+            
+            const rows = Array.from(table.querySelectorAll('tr'));
+            return {{
+                headers: Array.from(rows[0]?.querySelectorAll('th') || []).map(th => th.textContent.trim()),
+                rows: rows.slice(1).map(row => 
+                    Array.from(row.querySelectorAll('td')).map(td => td.textContent.trim())
+                )
+            }};
+        """)
+
+    def extract_json_from_script(self, pattern: str = "window.__DATA__") -> Dict[str, Any]:
+        """Extract JSON data from inline scripts.
+
+        Args:
+            pattern: Variable name or pattern to search for
+
+        Returns:
+            Extracted JSON data
+        """
+        return self.evaluate_script(f"""
+            try {{
+                return {pattern};
+            }} catch(e) {{
+                return {{error: 'Data not found or not valid JSON', message: e.message}};
+            }}
+        """)
+
+    def monitor_api_calls(self, url_pattern: str) -> Dict[str, Any]:
+        """Monitor and capture API calls matching a pattern.
+
+        Args:
+            url_pattern: URL pattern to match (regex)
+
+        Returns:
+            Captured API calls
+        """
+        return self.evaluate_script(f"""
+            const pattern = new RegExp('{url_pattern}');
+            return performance.getEntriesByType('resource')
+                .filter(entry => pattern.test(entry.name))
+                .map(entry => ({{  
+                    url: entry.name,
+                    duration: entry.duration,
+                    size: entry.transferSize,
+                    type: entry.initiatorType
+                }}));
+        """)
+
+    def scroll_to_bottom(self) -> Dict[str, Any]:
+        """Scroll page to bottom to trigger lazy loading.
+
+        Returns:
+            Scroll result
+        """
+        return self.evaluate_script("""
+            window.scrollTo(0, document.body.scrollHeight);
+            return {scrolled: true, height: document.body.scrollHeight};
+        """)
+
+    def get_page_metadata(self) -> Dict[str, Any]:
+        """Extract page metadata (title, description, etc.).
+
+        Returns:
+            Page metadata
+        """
+        return self.evaluate_script("""
+            return {
+                title: document.title,
+                description: document.querySelector('meta[name="description"]')?.content,
+                keywords: document.querySelector('meta[name="keywords"]')?.content,
+                url: window.location.href,
+                domain: window.location.hostname,
+                protocol: window.location.protocol,
+                viewport: {
+                    width: window.innerWidth,
+                    height: window.innerHeight
+                }
+            };
+        """)
+
